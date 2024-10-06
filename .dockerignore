@@ -1,0 +1,21 @@
+# Maven target directory
+/target
+
+# Git files
+.git
+.gitignore
+
+# Docker files
+Dockerfile
+docker-compose.yml
+
+# IDE files
+.idea
+.vscode
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
