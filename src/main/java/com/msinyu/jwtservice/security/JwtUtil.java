@@ -45,8 +45,8 @@ public class JwtUtil {
     }
 
     /**
-     * Generates a unique key for the user by concatenating the service key with all of the user's password vectors
-     * and applying a SHA-256 hash.
+     * Generates a unique key for the user by concatenating the service key, user's random hash,
+     * and all of the user's password vectors, then applying a SHA-256 hash.
      *
      * @param user User object.
      * @return Concatenated and hashed key string.
@@ -56,7 +56,7 @@ public class JwtUtil {
         for (PasswordHistory history : user.getPasswordHistories()) {
             allVectors.append(history.getPasswordVector());
         }
-        String combined = serviceKey + allVectors.toString();
+        String combined = serviceKey + user.getRandomHash() + allVectors.toString();
         return sha256(combined);
     }
 
@@ -109,11 +109,11 @@ public class JwtUtil {
      */
     public String extractUsername(String token) {
         try {
-            return Jwts.parser()
+            Claims claims = Jwts.parser()
                     .setSigningKey(serviceKey.getBytes(StandardCharsets.UTF_8))
                     .parseClaimsJws(token)
-                    .getBody()
-                    .getSubject();
+                    .getBody();
+            return claims.getSubject();
         } catch (JwtException | IllegalArgumentException e) {
             return null;
         }

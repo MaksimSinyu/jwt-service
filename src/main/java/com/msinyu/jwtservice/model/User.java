@@ -1,6 +1,7 @@
 package com.msinyu.jwtservice.model;
 
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import javax.persistence.*;
@@ -31,6 +32,12 @@ public class User {
      */
     @Column(nullable = false)
     private String passwordHash;
+
+    /**
+     * Unique random hash for the user to enhance token security.
+     */
+    @Column(nullable = false, unique = true, length = 64)
+    private String randomHash;
 
     /**
      * One-to-Many relationship with PasswordHistory.

@@ -5,7 +5,9 @@ import com.msinyu.jwtservice.dto.request.RegisterRequest;
 import com.msinyu.jwtservice.dto.response.ApiResponse;
 import com.msinyu.jwtservice.dto.response.SuccessResponse;
 import com.msinyu.jwtservice.dto.response.TokenResponse;
+import com.msinyu.jwtservice.model.User;
 import com.msinyu.jwtservice.repository.UserRepository;
+import com.msinyu.jwtservice.security.JwtUtil;
 import org.apache.http.impl.client.HttpClients;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +43,9 @@ public class JwtServiceApplicationTests {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private JwtUtil jwtUtil;
 
     private String baseUrl;
 
@@ -141,7 +146,7 @@ public class JwtServiceApplicationTests {
 
 
     @Test
-    public void testPasswordChange() {
+    public void testPasswordChangeAndTokenInvalidation() {
         // Register a new user
         RegisterRequest registerRequest = new RegisterRequest();
         registerRequest.setUsername("testuser");
@@ -160,6 +165,32 @@ public class JwtServiceApplicationTests {
         assertThat(registerResponse.getBody().getData()).isNotNull();
         assertThat(registerResponse.getBody().getData().getMessage()).isEqualTo("User registered successfully.");
 
+        // Attempt to login with correct credentials
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setUsername("testuser");
+        loginRequest.setPassword("SecurePass123");
+
+        ResponseEntity<ApiResponse<TokenResponse>> loginResponse = restTemplate.exchange(
+                "/login",
+                HttpMethod.POST,
+                new HttpEntity<>(loginRequest),
+                new ParameterizedTypeReference<ApiResponse<TokenResponse>>() {}
+        );
+
+        assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(loginResponse.getBody()).isNotNull();
+        assertThat(loginResponse.getBody().getMessage()).isEqualTo("Login successful.");
+        assertThat(loginResponse.getBody().getData()).isNotNull();
+        assertThat(loginResponse.getBody().getData().getToken()).isNotEmpty();
+
+        String oldToken = loginResponse.getBody().getData().getToken();
+
+        // Verify token validity
+        User user = userRepository.findByUsernameWithPasswordHistories("testuser").orElse(null);
+        assertThat(user).isNotNull();
+        boolean isOldTokenValid = jwtUtil.validateToken(oldToken, user);
+        assertThat(isOldTokenValid).isTrue();
+
         // Change the user's password
         ResponseEntity<ApiResponse<SuccessResponse>> changePasswordResponse = restTemplate.exchange(
                 "/change-password?username=testuser&newPassword=NewSecurePass456",
@@ -173,6 +204,10 @@ public class JwtServiceApplicationTests {
         assertThat(changePasswordResponse.getBody().getMessage()).isEqualTo("Password updated successfully.");
         assertThat(changePasswordResponse.getBody().getData()).isNotNull();
         assertThat(changePasswordResponse.getBody().getData().getMessage()).isEqualTo("Password updated successfully.");
+
+        // Re-fetch the user to get the updated randomHash
+        User updatedUser = userRepository.findByUsernameWithPasswordHistories("testuser").orElse(null);
+        assertThat(updatedUser).isNotNull();
 
         // Attempt to login with old password
         LoginRequest loginRequestOld = new LoginRequest();
@@ -208,6 +243,14 @@ public class JwtServiceApplicationTests {
         assertThat(newLoginResponse.getBody().getMessage()).isEqualTo("Login successful.");
         assertThat(newLoginResponse.getBody().getData()).isNotNull();
         assertThat(newLoginResponse.getBody().getData().getToken()).isNotEmpty();
+
+        String newToken = newLoginResponse.getBody().getData().getToken();
+
+        boolean isOldTokenStillValid = jwtUtil.validateToken(oldToken, updatedUser);
+        assertThat(isOldTokenStillValid).isFalse();
+
+        boolean isNewTokenValid = jwtUtil.validateToken(newToken, updatedUser);
+        assertThat(isNewTokenValid).isTrue();
     }
 
 }

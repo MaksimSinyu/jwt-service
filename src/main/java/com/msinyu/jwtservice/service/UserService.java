@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Optional;
 
 /**
@@ -20,6 +22,20 @@ public class UserService {
     @Autowired
     private PasswordService passwordService;
 
+    private static final SecureRandom secureRandom = new SecureRandom();
+    private static final int RANDOM_HASH_LENGTH = 48; // 48 bytes -> 64 characters in Base64
+
+    /**
+     * Generates a secure random hash.
+     *
+     * @return Base64 encoded random hash string.
+     */
+    public String generateRandomHash() {
+        byte[] randomBytes = new byte[RANDOM_HASH_LENGTH];
+        secureRandom.nextBytes(randomBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
+    }
+
     /**
      * Registers a new user.
      *
@@ -28,6 +44,7 @@ public class UserService {
      */
     @Transactional
     public User registerUser(User user) {
+        user.setRandomHash(generateRandomHash());
         return userRepository.save(user);
     }
 
@@ -43,7 +60,7 @@ public class UserService {
     }
 
     /**
-     * Updates a user's password hash and password vectors.
+     * Updates a user's password hash and password vectors, and regenerates the random hash.
      *
      * @param user              User to update.
      * @param newPasswordHash   New password hash.
@@ -54,7 +71,7 @@ public class UserService {
     public void updateUserPassword(User user, String newPasswordHash, String newPasswordVector) throws Exception {
         user.setPasswordHash(newPasswordHash);
         passwordService.addPasswordHistory(user, newPasswordHash, newPasswordVector);
+        user.setRandomHash(generateRandomHash());
         userRepository.save(user);
     }
-
 }
